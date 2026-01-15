@@ -88,16 +88,15 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     }
 
     function vote(uint _candidateId) public {
-        require(currentStatus == WorkflowStatus.VOTE, "Wrong status");
-        require(block.timestamp >= voteStartTime + 1 hours, "Wait 1 hour");
-        require(!voters[msg.sender], "You have already voted");
-        require(_candidateId > 0 && _candidateId <= candidateIds.length, "Invalid candidate ID");
-        require(!voteNFT.hasVoted(msg.sender), "Already have NFT");
+    require(currentStatus == WorkflowStatus.VOTE, "Wrong status");
+    require(block.timestamp >= voteStartTime + 1 hours, "Wait 1 hour");
+    require(_candidateId > 0 && _candidateId <= candidateIds.length, "Invalid candidate ID");
+    require(!voteNFT.hasVoted(msg.sender), "Already have NFT");
 
-        voters[msg.sender] = true;
-        candidates[_candidateId].voteCount += 1;
-        voteNFT.mint(msg.sender);
-    }
+    voters[msg.sender] = true;
+    candidates[_candidateId].voteCount += 1;
+    voteNFT.mint(msg.sender);
+}
     
     function declareWinner() external onlyOwner returns (uint) {
         require(currentStatus == WorkflowStatus.VOTE, "Wrong status");
@@ -151,6 +150,15 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     
     function grantWithdrawerRole(address account) external onlyOwner {
         grantRole(WITHDRAWER_ROLE, account);
+    }
+
+    function withdrawFunds() external onlyRole(WITHDRAWER_ROLE) {
+        require(currentStatus == WorkflowStatus.COMPLETED, "Wrong status");
+        uint balance = address(this).balance;
+        require(balance > 0, "No funds");
+        
+        (bool success, ) = msg.sender.call{value: balance}("");
+        require(success, "Transfer failed");
     }
     
     receive() external payable {}
