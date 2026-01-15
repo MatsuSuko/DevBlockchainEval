@@ -19,15 +19,23 @@ contract SimpleVotingSystemTest is Test {
     voter2 = makeAddr("voter2");
     voter3 = makeAddr("voter3");
 
-    // Créditer tous les comptes avec de l'ETH pour payer le gas des transactions
     vm.deal(OWNER, 100 ether);
     vm.deal(voter1, 10 ether);
     vm.deal(voter2, 10 ether);
     vm.deal(voter3, 10 ether);
 
     vm.startPrank(OWNER);
-    votingSystem = new SimpleVotingSystem(); //msg.sender de la TX est = à l'adress du SC "SimpleVotingSystemTest"
+    votingSystem = new SimpleVotingSystem();
     vm.stopPrank();
+  }
+
+  // HELPER FUNCTION - Active le vote
+  function enableVoting() internal {
+    vm.startPrank(OWNER);
+    votingSystem.changeWorkflowStatus(SimpleVotingSystem.WorkflowStatus.FOUND_CANDIDATES);
+    votingSystem.changeWorkflowStatus(SimpleVotingSystem.WorkflowStatus.VOTE);
+    vm.stopPrank();
+    vm.warp(block.timestamp + 1 hours + 1);
   }
 
   // ============ Tests d'initialisation ============
@@ -89,8 +97,6 @@ contract SimpleVotingSystemTest is Test {
   }
 
   function test_AddCandidate_WithWhitespace() public {
-    // Un nom avec seulement des espaces devrait être accepté (selon l'implémentation actuelle)
-    // Mais testons avec un nom valide contenant des espaces
     vm.startPrank(OWNER);
     votingSystem.addCandidate("John Doe");
     vm.stopPrank();
@@ -107,6 +113,8 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Bob");
     vm.stopPrank();
 
+    enableVoting();
+
     vm.startPrank(voter1);
     votingSystem.vote(1);
     vm.stopPrank();
@@ -121,6 +129,8 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Alice");
     votingSystem.addCandidate("Bob");
     vm.stopPrank();
+
+    enableVoting();
 
     vm.startPrank(voter1);
     votingSystem.vote(1);
@@ -146,12 +156,14 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Alice");
     vm.stopPrank();
 
+    enableVoting();
+
     vm.startPrank(voter1);
     votingSystem.vote(1);
     vm.stopPrank();
 
     vm.startPrank(voter1);
-    vm.expectRevert("You have already voted");
+    vm.expectRevert("Already have NFT");
     votingSystem.vote(1);
     vm.stopPrank();
   }
@@ -160,6 +172,8 @@ contract SimpleVotingSystemTest is Test {
     vm.startPrank(OWNER);
     votingSystem.addCandidate("Alice");
     vm.stopPrank();
+
+    enableVoting();
 
     vm.startPrank(voter1);
     vm.expectRevert("Invalid candidate ID");
@@ -171,6 +185,8 @@ contract SimpleVotingSystemTest is Test {
     vm.startPrank(OWNER);
     votingSystem.addCandidate("Alice");
     vm.stopPrank();
+
+    enableVoting();
 
     vm.startPrank(voter1);
     vm.expectRevert("Invalid candidate ID");
@@ -184,6 +200,8 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Bob");
     vm.stopPrank();
 
+    enableVoting();
+
     vm.startPrank(voter1);
     vm.expectRevert("Invalid candidate ID");
     votingSystem.vote(3);
@@ -194,6 +212,8 @@ contract SimpleVotingSystemTest is Test {
     vm.startPrank(OWNER);
     votingSystem.addCandidate("Alice");
     vm.stopPrank();
+
+    enableVoting();
 
     vm.startPrank(OWNER);
     votingSystem.vote(1);
@@ -218,6 +238,8 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Alice");
     votingSystem.addCandidate("Bob");
     vm.stopPrank();
+
+    enableVoting();
 
     vm.startPrank(voter1);
     votingSystem.vote(1);
@@ -298,6 +320,8 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Alice");
     vm.stopPrank();
 
+    enableVoting();
+
     vm.startPrank(voter1);
     votingSystem.vote(1);
     vm.stopPrank();
@@ -329,37 +353,34 @@ contract SimpleVotingSystemTest is Test {
   // ============ Tests de cas limites ============
 
   function test_CompleteVotingScenario() public {
-    // Ajouter plusieurs candidats
     vm.startPrank(OWNER);
     votingSystem.addCandidate("Alice");
     votingSystem.addCandidate("Bob");
     votingSystem.addCandidate("Charlie");
     vm.stopPrank();
 
-    // Plusieurs votants votent
+    enableVoting();
+
     vm.startPrank(voter1);
-    votingSystem.vote(1); // Alice
+    votingSystem.vote(1);
     vm.stopPrank();
 
     vm.startPrank(voter2);
-    votingSystem.vote(1); // Alice
+    votingSystem.vote(1);
     vm.stopPrank();
 
     vm.startPrank(voter3);
-    votingSystem.vote(2); // Bob
+    votingSystem.vote(2);
     vm.stopPrank();
 
-    // Vérifier les résultats
-    assertEq(votingSystem.getTotalVotes(1), 2); // Alice
-    assertEq(votingSystem.getTotalVotes(2), 1); // Bob
-    assertEq(votingSystem.getTotalVotes(3), 0); // Charlie
+    assertEq(votingSystem.getTotalVotes(1), 2);
+    assertEq(votingSystem.getTotalVotes(2), 1);
+    assertEq(votingSystem.getTotalVotes(3), 0);
 
-    // Vérifier que tous ont voté
     assertTrue(votingSystem.voters(voter1));
     assertTrue(votingSystem.voters(voter2));
     assertTrue(votingSystem.voters(voter3));
 
-    // Vérifier les détails des candidats
     SimpleVotingSystem.Candidate memory alice = votingSystem.getCandidate(1);
     assertEq(alice.voteCount, 2);
 
@@ -375,7 +396,8 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Alice");
     vm.stopPrank();
 
-    // Voter plusieurs fois avec différents votants
+    enableVoting();
+
     for (uint i = 0; i < 10; i++) {
       address voter = makeAddr(string(abi.encodePacked("voter", i)));
       vm.deal(voter, 1 ether);
@@ -390,7 +412,6 @@ contract SimpleVotingSystemTest is Test {
   // ============ Tests de fuzzing ============
 
   function testFuzz_AddCandidate(string memory _name) public {
-    // Filtrer les noms vides
     vm.assume(bytes(_name).length > 0);
 
     vm.startPrank(OWNER);
@@ -404,7 +425,6 @@ contract SimpleVotingSystemTest is Test {
   }
 
   function testFuzz_Vote_ValidCandidateId(uint8 _candidateId) public {
-    // Créer plusieurs candidats
     uint8 numCandidates = 10;
     vm.startPrank(OWNER);
     for (uint8 i = 1; i <= numCandidates; i++) {
@@ -412,7 +432,8 @@ contract SimpleVotingSystemTest is Test {
     }
     vm.stopPrank();
 
-    // Borner l'ID du candidat à une plage valide
+    enableVoting();
+
     _candidateId = uint8(bound(_candidateId, 1, numCandidates));
 
     address voter = makeAddr("fuzzVoter");
@@ -426,14 +447,14 @@ contract SimpleVotingSystemTest is Test {
   }
 
   function testFuzz_MultipleVotes(uint8 _numVotes) public {
-    // Limiter le nombre de votes pour éviter les problèmes de gas
     _numVotes = uint8(bound(_numVotes, 1, 50));
 
     vm.startPrank(OWNER);
     votingSystem.addCandidate("Alice");
     vm.stopPrank();
 
-    // Créer plusieurs votants et faire voter chacun une fois
+    enableVoting();
+
     for (uint8 i = 0; i < _numVotes; i++) {
       address voter = makeAddr(string(abi.encodePacked("voter", i)));
       vm.deal(voter, 1 ether);
@@ -471,6 +492,8 @@ contract SimpleVotingSystemTest is Test {
 
     assertFalse(votingSystem.voters(voter1));
 
+    enableVoting();
+
     vm.startPrank(voter1);
     votingSystem.vote(1);
     vm.stopPrank();
@@ -487,6 +510,7 @@ contract SimpleVotingSystemTest is Test {
 
     vm.startPrank(OWNER);
     votingSystem.transferOwnership(newOwner);
+    votingSystem.grantRole(votingSystem.ADMIN_ROLE(), newOwner);
     vm.stopPrank();
 
     vm.startPrank(newOwner);
@@ -504,6 +528,7 @@ contract SimpleVotingSystemTest is Test {
 
     vm.startPrank(OWNER);
     votingSystem.transferOwnership(newOwner);
+    votingSystem.revokeRole(votingSystem.ADMIN_ROLE(), OWNER);
     vm.stopPrank();
 
     vm.startPrank(OWNER);
