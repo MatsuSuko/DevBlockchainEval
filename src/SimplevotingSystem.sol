@@ -22,6 +22,7 @@ contract SimpleVotingSystem is Ownable, AccessControl {
         uint id;
         string name;
         uint voteCount;
+        uint fundsReceived;
     }
 
     mapping(uint => Candidate) public candidates;
@@ -38,7 +39,7 @@ contract SimpleVotingSystem is Ownable, AccessControl {
         require(currentStatus == WorkflowStatus.REGISTER_CANDIDATES, "Wrong status");
         require(bytes(_name).length > 0, "Candidate name cannot be empty");
         uint candidateId = candidateIds.length + 1;
-        candidates[candidateId] = Candidate(candidateId, _name, 0);
+        candidates[candidateId] = Candidate(candidateId, _name, 0, 0);
         candidateIds.push(candidateId);
     }
 
@@ -71,4 +72,7 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     function grantWithdrawerRole(address account) external onlyOwner {
         grantRole(WITHDRAWER_ROLE, account);
     }
+
+    // Pour recevoir de l'ETH
+    receive() external payable {}
 }

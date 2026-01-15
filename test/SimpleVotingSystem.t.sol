@@ -453,12 +453,12 @@ contract SimpleVotingSystemTest is Test {
     votingSystem.addCandidate("Bob");
     vm.stopPrank();
 
-    (uint id1, string memory name1, uint voteCount1) = votingSystem.candidates(1);
+    (uint id1, string memory name1, uint voteCount1, uint fundsReceived1) = votingSystem.candidates(1);
     assertEq(id1, 1);
     assertEq(name1, "Alice");
     assertEq(voteCount1, 0);
 
-    (uint id2, string memory name2, uint voteCount2) = votingSystem.candidates(2);
+    (uint id2, string memory name2, uint voteCount2, uint fundsReceived2) = votingSystem.candidates(2);
     assertEq(id2, 2);
     assertEq(name2, "Bob");
     assertEq(voteCount2, 0);
