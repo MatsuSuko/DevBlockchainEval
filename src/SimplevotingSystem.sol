@@ -6,10 +6,17 @@ import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessContr
 
 contract SimpleVotingSystem is Ownable, AccessControl {
     
-    // Etape 1: Définition des rôles
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant FOUNDER_ROLE = keccak256("FOUNDER_ROLE");
     bytes32 public constant WITHDRAWER_ROLE = keccak256("WITHDRAWER_ROLE");
+
+    enum WorkflowStatus {
+        REGISTER_CANDIDATES,
+        FOUND_CANDIDATES,
+        VOTE,
+        COMPLETED
+    }
+    WorkflowStatus public currentStatus;
     
     struct Candidate {
         uint id;
@@ -22,12 +29,13 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     uint[] private candidateIds;
 
     constructor() Ownable(msg.sender) {
-        // Etape 1
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
+        currentStatus = WorkflowStatus.REGISTER_CANDIDATES;
     }
 
     function addCandidate(string memory _name) public onlyOwner {
+        require(currentStatus == WorkflowStatus.REGISTER_CANDIDATES, "Wrong status");
         require(bytes(_name).length > 0, "Candidate name cannot be empty");
         uint candidateId = candidateIds.length + 1;
         candidates[candidateId] = Candidate(candidateId, _name, 0);
@@ -56,7 +64,6 @@ contract SimpleVotingSystem is Ownable, AccessControl {
         return candidates[_candidateId];
     }
     
-    // Etape 1 - Pour donner les rôles
     function grantFounderRole(address account) external onlyOwner {
         grantRole(FOUNDER_ROLE, account);
     }
