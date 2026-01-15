@@ -5,7 +5,6 @@ import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {ERC721} from "openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
 
-
 contract VoteNFT is ERC721 {
     uint256 private _tokenIdCounter;
     address public votingContract;
@@ -52,6 +51,9 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     
     VoteNFT public voteNFT;
     uint256 public voteStartTime;
+    
+    uint256 public winnerId;
+    bool public winnerDeclared;
 
     constructor() Ownable(msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -96,6 +98,32 @@ contract SimpleVotingSystem is Ownable, AccessControl {
         candidates[_candidateId].voteCount += 1;
         voteNFT.mint(msg.sender);
     }
+    
+    function declareWinner() external onlyOwner returns (uint) {
+        require(currentStatus == WorkflowStatus.VOTE, "Wrong status");
+        require(!winnerDeclared, "Already declared");
+        
+        uint maxVotes = 0;
+        uint winningId = 0;
+        
+        for (uint i = 0; i < candidateIds.length; i++) {
+            uint candidateId = candidateIds[i];
+            if (candidates[candidateId].voteCount > maxVotes) {
+                maxVotes = candidates[candidateId].voteCount;
+                winningId = candidateId;
+            }
+        }
+        
+        require(winningId > 0, "No winner");
+        winnerId = winningId;
+        winnerDeclared = true;
+        return winningId;
+    }
+    
+    function completeVoting() external onlyOwner {
+        require(winnerDeclared, "Declare winner first");
+        currentStatus = WorkflowStatus.COMPLETED;
+    }
 
     function getTotalVotes(uint _candidateId) public view returns (uint) {
         require(_candidateId > 0 && _candidateId <= candidateIds.length, "Invalid candidate ID");
@@ -109,6 +137,12 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     function getCandidate(uint _candidateId) public view returns (Candidate memory) {
         require(_candidateId > 0 && _candidateId <= candidateIds.length, "Invalid candidate ID");
         return candidates[_candidateId];
+    }
+    
+    function getWinner() external view returns (uint, string memory, uint) {
+        require(winnerDeclared, "No winner yet");
+        Candidate memory winner = candidates[winnerId];
+        return (winner.id, winner.name, winner.voteCount);
     }
     
     function grantFounderRole(address account) external onlyOwner {
