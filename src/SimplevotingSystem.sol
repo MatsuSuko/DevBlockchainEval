@@ -3,13 +3,34 @@ pragma solidity ^0.8.26;
 
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
+import {ERC721} from "openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
+
+
+contract VoteNFT is ERC721 {
+    uint256 private _tokenIdCounter;
+    address public votingContract;
+    
+    constructor() ERC721("VoteNFT", "VNFT") {
+        votingContract = msg.sender;
+    }
+    
+    function mint(address voter) external {
+        require(msg.sender == votingContract, "Only voting contract");
+        _safeMint(voter, _tokenIdCounter);
+        _tokenIdCounter++;
+    }
+    
+    function hasVoted(address voter) external view returns (bool) {
+        return balanceOf(voter) > 0;
+    }
+}
 
 contract SimpleVotingSystem is Ownable, AccessControl {
     
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant FOUNDER_ROLE = keccak256("FOUNDER_ROLE");
     bytes32 public constant WITHDRAWER_ROLE = keccak256("WITHDRAWER_ROLE");
-
+    
     enum WorkflowStatus {
         REGISTER_CANDIDATES,
         FOUND_CANDIDATES,
@@ -28,11 +49,15 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     mapping(uint => Candidate) public candidates;
     mapping(address => bool) public voters;
     uint[] private candidateIds;
+    
+    VoteNFT public voteNFT;
+    uint256 public voteStartTime;
 
     constructor() Ownable(msg.sender) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ADMIN_ROLE, msg.sender);
         currentStatus = WorkflowStatus.REGISTER_CANDIDATES;
+        voteNFT = new VoteNFT();
     }
 
     function addCandidate(string memory _name) public onlyOwner {
@@ -42,13 +67,34 @@ contract SimpleVotingSystem is Ownable, AccessControl {
         candidates[candidateId] = Candidate(candidateId, _name, 0, 0);
         candidateIds.push(candidateId);
     }
+    
+    function changeWorkflowStatus(WorkflowStatus _newStatus) external onlyOwner {
+        require(uint(_newStatus) == uint(currentStatus) + 1, "Must follow order");
+        currentStatus = _newStatus;
+        
+        if (_newStatus == WorkflowStatus.VOTE) {
+            voteStartTime = block.timestamp;
+        }
+    }
+    
+    function fundCandidate(uint _candidateId) external payable onlyRole(FOUNDER_ROLE) {
+        require(currentStatus == WorkflowStatus.FOUND_CANDIDATES, "Wrong status");
+        require(_candidateId > 0 && _candidateId <= candidateIds.length, "Invalid ID");
+        require(msg.value > 0, "Send ETH");
+        
+        candidates[_candidateId].fundsReceived += msg.value;
+    }
 
     function vote(uint _candidateId) public {
+        require(currentStatus == WorkflowStatus.VOTE, "Wrong status");
+        require(block.timestamp >= voteStartTime + 1 hours, "Wait 1 hour");
         require(!voters[msg.sender], "You have already voted");
         require(_candidateId > 0 && _candidateId <= candidateIds.length, "Invalid candidate ID");
+        require(!voteNFT.hasVoted(msg.sender), "Already have NFT");
 
         voters[msg.sender] = true;
         candidates[_candidateId].voteCount += 1;
+        voteNFT.mint(msg.sender);
     }
 
     function getTotalVotes(uint _candidateId) public view returns (uint) {
@@ -72,7 +118,6 @@ contract SimpleVotingSystem is Ownable, AccessControl {
     function grantWithdrawerRole(address account) external onlyOwner {
         grantRole(WITHDRAWER_ROLE, account);
     }
-
-    // Pour recevoir de l'ETH
+    
     receive() external payable {}
 }
