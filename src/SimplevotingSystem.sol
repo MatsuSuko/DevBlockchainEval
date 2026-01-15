@@ -2,8 +2,15 @@
 pragma solidity ^0.8.26;
 
 import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 
-contract SimpleVotingSystem  is Ownable{
+contract SimpleVotingSystem is Ownable, AccessControl {
+    
+    // Etape 1: Définition des rôles
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant FOUNDER_ROLE = keccak256("FOUNDER_ROLE");
+    bytes32 public constant WITHDRAWER_ROLE = keccak256("WITHDRAWER_ROLE");
+    
     struct Candidate {
         uint id;
         string name;
@@ -14,7 +21,11 @@ contract SimpleVotingSystem  is Ownable{
     mapping(address => bool) public voters;
     uint[] private candidateIds;
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) {
+        // Etape 1
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
+    }
 
     function addCandidate(string memory _name) public onlyOwner {
         require(bytes(_name).length > 0, "Candidate name cannot be empty");
@@ -40,9 +51,17 @@ contract SimpleVotingSystem  is Ownable{
         return candidateIds.length;
     }
 
-    // Optional: Function to get candidate details by ID
     function getCandidate(uint _candidateId) public view returns (Candidate memory) {
         require(_candidateId > 0 && _candidateId <= candidateIds.length, "Invalid candidate ID");
         return candidates[_candidateId];
+    }
+    
+    // Etape 1 - Pour donner les rôles
+    function grantFounderRole(address account) external onlyOwner {
+        grantRole(FOUNDER_ROLE, account);
+    }
+    
+    function grantWithdrawerRole(address account) external onlyOwner {
+        grantRole(WITHDRAWER_ROLE, account);
     }
 }
